@@ -23,8 +23,7 @@ def detect_lines(image):
     canny = cv.Canny(equaliza, 400, 150)
     cropped_edges = region_of_interest(canny)
     gabor = cv.getGaborKernel((21, 21), 5, np.pi / 4, 10, 1, 0, ktype=cv.CV_32F)
-    #lines = cv.filter2D(cropped_edges, cv.CV_8UC1, gabor)  # Corrige o tipo da imagem filtrada
-    #lines = cv.HoughLinesP(cropped_edges, 1, np.pi / 180, 150, minLineLength=50, maxLineGap=50)  # Detecta linhas
+    lines = cv.filter2D(cropped_edges, cv.CV_8UC1, gabor)  # Corrige o tipo da imagem filtrada
     return canny, lines  # Retorna o resultado da detecção de linhas
 
 def draw_lines(image, lines):
@@ -40,9 +39,6 @@ def draw_lines(image, lines):
     return combined_image
 
 def main():
-    """
-    Função principal para abrir a câmera e detectar linhas de rodovia em tempo real.
-    """
     cap = cv.VideoCapture(0)
 
     if not cap.isOpened():
