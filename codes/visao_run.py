@@ -14,7 +14,8 @@ def region_of_interest(image):# divide a imagem horizontalmente
 def split_image(masked_image):# divide a imagem em direita e esquerda 
     width = masked_image.shape[1]
     mid_x = width // 2
-    left_mask = np.zeros_like(masked_image)
+    left_split = np.zeros_like(masked_image)
+    left_mask= region_of_interest(left_split)
     left_mask[:, :mid_x-1] = masked_image[:, :mid_x-1]
     
     right_mask = np.zeros_like(masked_image)
@@ -32,7 +33,7 @@ def detect_lines(image):
     cropped_left, cropped_right = split_image(canny)
     lines_left = cv.HoughLinesP(cropped_left, 1, np.pi / 180, 50, minLineLength=ll, maxLineGap=gl)
     lines_right = cv.HoughLinesP(cropped_right, 1, np.pi / 180, 50, minLineLength=lr, maxLineGap=gr)
-    return cropped_left, cropped_right, lines_left, lines_right
+    return lines_left, lines_right
 
 def draw_lines(image, lines_left, lines_right):
     line_image = np.zeros_like(image)
@@ -63,15 +64,13 @@ def main():
             print("Não foi possível capturar o quadro.")
             break
 
-        canny_left, canny_right, lines_left, lines_right = detect_lines(frame)
+        lines_left, lines_right = detect_lines(frame)
         line_image_left, line_image_right = draw_lines(frame, lines_left, lines_right)
         teste_roi=region_of_interest(frame)
-        teste_split=split_image(frame)
-
         
         cv.imshow('ROI', teste_roi)
-        cv.imshow('split', teste_split)
-        cv.imshow('Linhas Direitas', line_image_right)
+        cv.imshow('Linhas Direitas', line_image_left)
+        cv.imshow('Linhas Esquerda', line_image_right)
 
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
