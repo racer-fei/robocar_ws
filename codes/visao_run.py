@@ -1,98 +1,83 @@
-import cv2 as cv
+import cv2
 import numpy as np
 
-def region_of_interest(image):
-    height = image.shape[0]
-    width = image.shape[1]
-    polygons = np.array([
-        [(0, height), (width, height), (width, height // 2), (0, height // 2)]], dtype=np.int32)
-    mask = np.zeros_like(image)
-    cv.fillPoly(mask, polygons, (255, 255, 255))
-    masked_image = cv.bitwise_and(image, mask)
-    return masked_image
+def crop_left_half(frame):
+    """Corta a imagem verticalmente ao meio e utiliza somente o lado esquerdo."""
+    height, width = frame.shape[:2]
+    return frame[:, :width // 2]
 
-def split_image(image):
-    width = image.shape[1]
-    mid_x = width // 2
-    left_split = image[:, :mid_x-1]
-    right_split = image[:, mid_x+1:]
-    return left_split, right_split
+def roi_bottom_half(frame):
+    """Corta a imagem horizontalmente ao meio e utiliza somente a metade inferior."""
+    height, width = frame.shape[:2]
+    return frame[height // 2:, :]
 
-def detect_lines(image):
-    ll = 110
-    lr = 120
-    gl = 5
-    gr = 9
-    gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-    blurred = cv.GaussianBlur(gray, (5, 5), 1)
-    canny = cv.Canny(blurred, 50, 210)
-    cropped_left, cropped_right = split_image(canny)
+def calculate_angle(x1, y1, x2, y2):
+    """Calcula o ângulo da linha com base nas coordenadas dos pontos."""
+    delta_y = y2 - y1
+    delta_x = x2 - x1
+    angle = np.degrees(np.arctan2(delta_y, delta_x))
+    return angle
 
-    def filter_lines(lines):
-        filtered_lines = []
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            dx = x2 - x1
-            dy = y2 - y1
-            if dx != 0:
-                angle = np.arctan2(dy, dx) * 180 / np.pi
-                # Considera linhas com inclinação entre 45 e 135 graus como verticais
-                if not (-10 < angle < 10):
-                    filtered_lines.append(line)
-        return filtered_lines
-
-    lines_left = cv.HoughLinesP(cropped_left, 1, np.pi / 180, 50, minLineLength=ll, maxLineGap=gl)
-    lines_right = cv.HoughLinesP(cropped_right, 1, np.pi / 180, 50, minLineLength=lr, maxLineGap=gr)
+def process_frame(frame):
+    # Pré-processamento: cortar a imagem verticalmente ao meio e usar somente o lado esquerdo
+    frame = crop_left_half(frame)
     
-    if lines_left is not None:
-        lines_left = filter_lines(lines_left)
-    if lines_right is not None:
-        lines_right = filter_lines(lines_right)
-        
-    return lines_left, lines_right
-
-def draw_lines(image, lines_left, lines_right):
-    line_image = np.zeros_like(image)
-    height, width = image.shape[:2]
+    # Pré-processamento: cortar a imagem horizontalmente ao meio e usar somente a metade inferior
+    frame = roi_bottom_half(frame)
     
-    if lines_left is not None:
-        for line in lines_left:
-            x1, y1, x2, y2 = line[0]
-            cv.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), 3)
+    # Converter para escala de cinza
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
-    if lines_right is not None:
-        for line in lines_right:
-            x1, y1, x2, y2 = line[0]
-            x1 += width // 2
-            x2 += width // 2
-            cv.line(line_image, (x1, y1), (x2, y2), (255, 0, 0), 3)
+    # Aplicar um desfoque para reduzir o ruído
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     
-    combined_image = cv.addWeighted(image, 0.65, line_image, 1, 1)
-    return combined_image
+    # Detecção de bordas usando o Canny
+    edges = cv2.Canny(blurred, 50, 150)
+    
+    # Encontrar linhas usando a Transformada de Hough Probabilística
+    length = 100
+    gap = 9
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=length, maxLineGap=gap)
+    
+    if lines is not None:
+        for x1, y1, x2, y2 in lines[:, 0]:
+            # Calcular ângulo da linha
+            angle = calculate_angle(x1, y1, x2, y2)
+            
+            # Ignorar linhas horizontais (ângulo próximo de 0 graus)
+            if abs(angle) > 5:  # Ajuste o valor conforme necessário
+                # Desenhar as linhas na imagem original
+                cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                
+                # Mostrar o ângulo da linha (ignorado se for horizontal)
+                print(f"Angulo da linha: {angle:.2f} graus")
+                
+                # Aqui você pode adicionar a lógica para controlar os motores com base no ângulo
+            else:
+                print("Linha horizontal detectada e ignorada.")
+    
+    return frame
 
 def main():
-    cap = cv.VideoCapture(0)
-    if not cap.isOpened():
-        print("Erro ao abrir a câmera.")
-        return
-
+    # Abrir a captura de vídeo (0 para a webcam padrão)
+    cap = cv2.VideoCapture(0)
+    
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Não foi possível capturar o quadro.")
             break
-
-        roi = region_of_interest(frame)
-        lines_left, lines_right = detect_lines(roi)
-        line_image = draw_lines(frame, lines_left, lines_right)
         
-        cv.imshow('Linhas Detectadas', line_image)
-
-        if cv.waitKey(1) & 0xFF == ord('q'):
+        # Processar o frame
+        processed_frame = process_frame(frame)
+        
+        # Mostrar o frame processado
+        cv2.imshow('Pista', processed_frame)
+        
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-
+    
     cap.release()
-    cv.destroyAllWindows()
+    cv2.destroyAllWindows()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
