@@ -1,4 +1,4 @@
-import cv2
+import cv2 as cv
 import numpy as np
 
 def crop_left_half(frame):
@@ -19,65 +19,44 @@ def calculate_angle(x1, y1, x2, y2):
     return angle
 
 def process_frame(frame):
-    # Pré-processamento: cortar a imagem verticalmente ao meio e usar somente o lado esquerdo
+
     frame = crop_left_half(frame)
-    
-    # Pré-processamento: cortar a imagem horizontalmente ao meio e usar somente a metade inferior
     frame = roi_bottom_half(frame)
-    
-    # Converter para escala de cinza
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    
-    # Aplicar um desfoque para reduzir o ruído
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    
-    # Detecção de bordas usando o Canny
-    edges = cv2.Canny(blurred, 50, 150)
-    
-    # Encontrar linhas usando a Transformada de Hough Probabilística
-    length = 100
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    blurred = cv.GaussianBlur(gray, (5, 5), 0)
+    edges = cv.Canny(blurred, 50, 150)
+    length = 110
     gap = 9
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=length, maxLineGap=gap)
-    
+    lines = cv.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=length, maxLineGap=gap)
     if lines is not None:
         for x1, y1, x2, y2 in lines[:, 0]:
-            # Calcular ângulo da linha
             angle = calculate_angle(x1, y1, x2, y2)
             
-            # Ignorar linhas horizontais (ângulo próximo de 0 graus)
-            if abs(angle) > 5:  # Ajuste o valor conforme necessário
+            if abs(angle) > 5:  
                 # Desenhar as linhas na imagem original
-                cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                
-                # Mostrar o ângulo da linha (ignorado se for horizontal)
+                cv.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+ 
                 print(f"Angulo da linha: {angle:.2f} graus")
-                
-                # Aqui você pode adicionar a lógica para controlar os motores com base no ângulo
             else:
                 print("Linha horizontal detectada e ignorada.")
-    
     return frame
 
 def main():
-    # Abrir a captura de vídeo (0 para a webcam padrão)
-    cap = cv2.VideoCapture(0)
+    cap = cv.VideoCapture(0)
     
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-        
-        # Processar o frame
         processed_frame = process_frame(frame)
+
+        cv.imshow('Pista', processed_frame)
         
-        # Mostrar o frame processado
-        cv2.imshow('Pista', processed_frame)
-        
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv.waitKey(1) & 0xFF == ord('q'):
             break
     
     cap.release()
-    cv2.destroyAllWindows()
+    cv.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
