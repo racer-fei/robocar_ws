@@ -1,74 +1,51 @@
-import cv2 as cv
-import numpy as np
+import serial
+import time
 
-def region_of_interest(image):
-    """
-    Aplica uma máscara para focar na região de interesse (ROI) da estrada, que é tipicamente a metade inferior da imagem.
-    """
-    height = image.shape[0]
-    polygons = np.array([
-        [(0, height), (image.shape[1], height), (image.shape[1], height // 2), (0, height // 2)]
-    ])
-    mask = np.zeros_like(image)
-    cv.fillPoly(mask, polygons, 255)
-    masked_image = cv.bitwise_and(image, mask)
-    return masked_image
+# Configurações da porta serial
+port = '/dev/ttyTHS0'  # Ajuste conforme necessário
+baudrate = 115200
 
-def detect_lines(image):
-    """
-    Detecta as linhas na imagem usando a Transformada de Hough.
-    """
-    gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-    blur = cv.GaussianBlur(gray, (5, 5), 0)
-    thresh = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 15, -2)
-    canny = cv.Canny(thresh, 150, 200) # parametros originais 50,150
+# Inicializa a conexão serial
+ser = serial.Serial(port, baudrate, timeout=1)
+time.sleep(2)  # Aguarda a conexão ser estabelecida
 
-    cropped_edges = region_of_interest(canny)
-    lines = cv.HoughLinesP(cropped_edges, 1, np.pi/180, 50, minLineLength=50, maxLineGap=150)
-    return lines
+def send_command(command):
+    ser.write(command)
 
-def draw_lines(image, lines):
-    """
-    Desenha as linhas detectadas na imagem.
-    """
-    line_image = np.zeros_like(image)
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            cv.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), 10)
-    combined_image = cv.addWeighted(image, 0.8, line_image, 1, 1)
-    return combined_image
+def read_response():
+    response = ser.readline().decode('utf-8').strip()
+    return response
 
-def main():
-    """
-    Função principal para abrir a câmera e detectar linhas de rodovia em tempo real.
-    """
-    cap = cv.VideoCapture(0)
-    
-    if not cap.isOpened():
-        print("Erro ao abrir a câmera.")
-        return
-    
+def get_motor_speed():
+    # Comando fictício para obter a velocidade do motor, ajuste conforme a documentação
+    command = bytearray([0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A])  # Exemplo de comando
+    send_command(command)
+    time.sleep(0.1)
+    return read_response()
+
+# Loop principal
+try:
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Não foi possível capturar o quadro.")
-            break
+        # Comando para girar lentamente (ajuste conforme necessário)
+        duty_command = bytearray([0x01, 0x10, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A])  # Exemplo de comando
+        send_command(duty_command)
 
-        lines = detect_lines(frame)
-        line_image = draw_lines(frame, lines)
-    
-        
-        cv.imshow('Detectando linhas', line_image)
-        
+        # Aguarda 4 segundos
+        time.sleep(4)
 
-        # Sair do loop quando 'q' for pressionado
-        if cv.waitKey(1) & 0xFF == ord('q'):
-            break
+        # Parar o motor
+        stop_command = bytearray([0x01, 0x10, 0x00, 0x00, 0x00, 0x00, 0x84, 0x0A])  # Comando para parar
+        send_command(stop_command)
 
-    cap.release()
-    cv.destroyAllWindows()
+        # Aguarda 2 segundos
+        time.sleep(2)
 
-if __name__ == '__main__':
-    main()
+        # Imprimir a velocidade do motor
+        speed = get_motor_speed()
+        print(f'Velocidade do motor: {speed}')
 
+except KeyboardInterrupt:
+    print("Programa interrompido.")
+
+# Fechar a conexão
+ser.close()
