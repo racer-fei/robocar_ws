@@ -1,0 +1,63 @@
+#include <Servo.h>
+
+Servo esc;  // Cria um objeto servo para controlar o ESC
+Servo motorServo;  // Cria um objeto servo para controlar o motor
+int positivo = A1; // Pino A1 para ligar permanentemente
+int ledPin = 13;   // Pino do LED
+int encoderPin = 4; // Pino do encoder
+volatile int encoderValue = 0;  // Variável para armazenar o valor do encoder
+const int escPin = 9; // Pino do ESC
+const int maxPower = 255; // Potência máxima do motor (255 corresponde a 100%)
+const int targetPower = (80 * maxPower) / 100; // 80% da potência total
+
+void setup() {
+  pinMode(positivo, OUTPUT);
+  digitalWrite(positivo, HIGH); // Liga A1 permanentemente
+
+  pinMode(ledPin, OUTPUT); // Configura o pino do LED como saída
+  esc.attach(escPin); // Conecta o ESC
+  motorServo.attach(2); // Conecta o servo motor
+
+  // Configura o pino do encoder como entrada e ativa a interrupção
+  pinMode(encoderPin, INPUT);
+  attachInterrupt(digitalPinToInterrupt(encoderPin), encoderInterrupt, RISING); // Altera para RISING ou FALLING conforme necessário
+
+  Serial.begin(9600); // Inicializa a comunicação serial
+  drive(); // Aciona o ESC com velocidade gradual
+}
+
+void loop() {
+  motor_info(); // Lê as informações do encoder
+  delay(1000); // Aguarda 1 segundo entre as leituras
+}
+
+// Função para lidar com a interrupção do encoder
+void encoderInterrupt() {
+  encoderValue++; // Incrementa o valor do encoder
+}
+
+// Função para acionar o ESC com velocidade gradual até 80%
+void drive() {
+  for (int power = 0; power <= targetPower; power++) {
+    esc.write(map(power, 0, maxPower, 0, 180)); // Mapeia o valor para a faixa do servo
+    delay(500); // Aguarda um pouco para suavizar a aceleração
+  }
+  // Mantém a velocidade
+  esc.write(map(targetPower, 0, maxPower, 0, 180)); // Mantém 80%
+}
+
+// Função para ler as informações do encoder e mostrar na tela
+void motor_info() {
+  Serial.print("Encoder Value: ");
+  Serial.println(encoderValue);
+}
+
+// Função para posicionar o motor servo na posição indicada
+void turn(int position) {
+  if (position >= 0 && position <= 180) { // Verifica se a posição está dentro do intervalo
+    motorServo.write(position); // Define a posição do servo
+    delay(15); // Aguarda o servo se mover
+  } else {
+    Serial.println("Posição inválida. Deve ser entre 0 e 180.");
+  }
+}
