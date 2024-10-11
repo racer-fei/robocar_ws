@@ -1,0 +1,56 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+def detectar_faixas(img):
+    # Converter para escala de cinza
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Aplicar desfoque gaussiano para suavizar a imagem e reduzir ruído
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Aplicar a detecção de bordas de Canny
+    edges = cv2.Canny(blurred, 50, 150)
+
+    # Definir uma região de interesse (opcional, mas ajuda a focar apenas na estrada)
+    height, width = edges.shape
+    mask = np.zeros_like(edges)
+    polygon = np.array([[
+        (0, height),
+        (width, height),
+        (width // 2, height // 2)
+    ]], np.int32)
+    cv2.fillPoly(mask, polygon, 255)
+    masked_edges = cv2.bitwise_and(edges, mask)
+
+    # Aplicar a Transformada de Hough para detectar linhas
+    lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=120, minLineLength=50, maxLineGap=5)
+    #threshold=100 número mínimo de interseções necessárias em um ponto da Transformada de Hough para que ele seja considerado uma linha. Se um ponto no espaço de Hough acumular pelo menos 100 interseções, ele será considerado uma linha detectada.
+    #minLineLength=40 Especifica o comprimento mínimo em pixels de uma linha para que ela seja considerada uma linha válida. Linhas menores que 40 pixels serão ignoradas.
+    #maxLineGap=5 Define a distância máxima em pixels entre dois segmentos de linha detectados que podem ser unidos para formar uma linha contínua. Se a distância entre dois segmentos for menor ou igual a 5 pixels, eles serão unidos em uma única linha.
+
+    # Desenhar as linhas detectadas na imagem original
+    line_image = np.copy(img) * 0  # Criar uma imagem em branco com as mesmas dimensões da original
+    if lines is not None:
+        for line in lines:
+            for x1, y1, x2, y2 in line:
+                cv2.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), 10)
+
+    # Combinar a imagem original com as linhas desenhadas
+    img_com_linhas = cv2.addWeighted(img, 0.8, line_image, 1, 0)
+
+    return img_com_linhas
+
+# Carregar a imagem de entrada
+imagem = cv2.imread('/Users/sofialinheira/Desktop/IC/codigos_teste/imagens/lane2.jpeg')
+
+# Detectar e destacar as faixas
+imagem_com_faixas = detectar_faixas(imagem)
+
+# Mostrar a imagem resultante
+plt.imshow(cv2.cvtColor(imagem_com_faixas, cv2.COLOR_BGR2RGB))
+plt.axis('off')
+plt.show()
+
+# Opcional: salvar a imagem resultante
+cv2.imwrite('imagem_com_faixas.jpg', imagem_com_faixas)
